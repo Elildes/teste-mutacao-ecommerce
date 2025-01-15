@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import ecommerce.dto.CompraDTO;
@@ -26,7 +25,6 @@ public class CompraService {
 	private final IEstoqueExternal estoqueExternal;
 	private final IPagamentoExternal pagamentoExternal;
 
-	@Autowired
 	public CompraService(CarrinhoDeComprasService carrinhoService, ClienteService clienteService,
 			IEstoqueExternal estoqueExternal, IPagamentoExternal pagamentoExternal) {
 		this.carrinhoService = carrinhoService;
