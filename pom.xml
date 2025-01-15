@@ -16,11 +16,10 @@
 	</parent>
 
 	<properties>
-		<java.version>21</java.version> <!-- Java 17 é o padrão para Spring Boot
-		3 -->
-		<spring-cloud.version>2022.0.3</spring-cloud.version> <!-- Spring Cloud
-		compatível com Spring Boot 3.x -->
+		<java.version>21</java.version> <!-- Java 17 é o padrão para Spring Boot 3 -->
+		<spring-cloud.version>2022.0.3</spring-cloud.version> <!-- Spring Cloud compatível com Spring Boot 3.x -->
 		<junit.jupiter.version>5.11.0</junit.jupiter.version>
+		<pitest.version>1.17.4</pitest.version>
 	</properties>
 
 	<dependencyManagement>
@@ -104,11 +103,58 @@
 	</dependencies>
 
 	<build>
+		<pluginManagement>
+			<plugins>
+				<!-- Pitest Plugin Management (Versão Específica) -->
+				<plugin>
+					<groupId>org.pitest</groupId>
+					<artifactId>pitest-maven</artifactId>
+					<version>${pitest.version}</version>
+				</plugin>				
+			</plugins>
+		</pluginManagement>
+
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+			<!-- Configuração do Plugin Pitest com pitest-junit5-plugin -->
+			<plugin>
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<version>${pitest.version}</version>
+				<dependencies>
+					<!-- Plugin de Integração com JUnit 5 -->
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>1.2.1</version>
+					</dependency>
+				</dependencies>
+				<configuration>					
+					<mutators>
+						<mutator>ALL</mutator>
+					</mutators>
+					<jvmArgs>
+						<jvmArg>-ea</jvmArg>
+					</jvmArgs>
+					<outputFormats>
+						<param>HTML</param>
+						<param>XML</param>
+						<param>CSV</param>
+					</outputFormats>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>mutationCoverage</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
 		</plugins>
 	</build>
 </project>
