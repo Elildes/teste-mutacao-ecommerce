@@ -12,6 +12,7 @@ import ecommerce.dto.EstoqueBaixaDTO;
 import ecommerce.dto.PagamentoDTO;
 import ecommerce.entity.CarrinhoDeCompras;
 import ecommerce.entity.Cliente;
+import ecommerce.entity.TipoCliente;
 import ecommerce.external.IEstoqueExternal;
 import ecommerce.external.IPagamentoExternal;
 import jakarta.transaction.Transactional;
@@ -69,8 +70,60 @@ public class CompraService {
 		return compraDTO;
 	}
 
+
+	public BigDecimal calcularFrete(CarrinhoDeCompras carrinho){
+		int pesoTotal = carrinho.getItens().stream()
+		.mapToInt(item -> item.getProduto().getPeso() * item.getQuantidade().intValue()).sum();
+
+		BigDecimal frete = BigDecimal.ZERO;
+		if(pesoTotal > 50){
+			frete = BigDecimal.valueOf(pesoTotal * 7);
+		}else if( pesoTotal > 10){
+			frete = BigDecimal.valueOf(pesoTotal * 4);
+		}else if(pesoTotal > 5){
+			frete = BigDecimal.valueOf(pesoTotal * 2);
+		}
+
+		return frete;
+	}
+
+	public BigDecimal calcularDesconto(BigDecimal totalProdutos){
+		BigDecimal desconto = BigDecimal.ZERO;
+
+		if(totalProdutos.compareTo(BigDecimal.valueOf(1000)) > 0){
+			desconto = totalProdutos.multiply(BigDecimal.valueOf(0.20));
+		} else if (totalProdutos.compareTo(BigDecimal.valueOf(500)) > 0){
+			desconto = totalProdutos.multiply(BigDecimal.valueOf(0.10));
+		}
+
+		return desconto;
+	}
+
+	public BigDecimal calcularDescontoTipoCliente(Cliente cliente, BigDecimal frete){
+		switch (cliente.getTipo()) {
+			case OURO:
+				return frete;
+			case PRATA:
+				return frete.multiply(BigDecimal.valueOf(0.50));
+			case BRONZE:
+			default:
+				return BigDecimal.ZERO;
+		}
+	}
+
+
+
 	public BigDecimal calcularCustoTotal(CarrinhoDeCompras carrinho) {
-		// To-Do
-		return BigDecimal.ZERO;
+		BigDecimal totalProdutos = carrinho.getItens().stream()
+		.map(item -> item.getProduto().getPreco().multiply(BigDecimal.valueOf(item.getQuantidade())))
+		.reduce(BigDecimal.ZERO, BigDecimal::add);
+
+		BigDecimal frete = calcularFrete(carrinho);
+		BigDecimal desconto = calcularDesconto(totalProdutos);
+		BigDecimal descontoTipoCliente = calcularDescontoTipoCliente(carrinho.getCliente(), frete);
+
+		BigDecimal custoTotal = totalProdutos.subtract(desconto).add(frete).subtract(descontoTipoCliente);
+
+		return custoTotal;
 	}
 }
