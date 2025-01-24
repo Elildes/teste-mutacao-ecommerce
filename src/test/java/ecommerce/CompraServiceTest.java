@@ -1,19 +1,34 @@
 package ecommerce;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
+import ecommerce.dto.CompraDTO;
+import ecommerce.dto.DisponibilidadeDTO;
+import ecommerce.dto.EstoqueBaixaDTO;
+import ecommerce.dto.PagamentoDTO;
 import ecommerce.entity.CarrinhoDeCompras;
 import ecommerce.entity.Cliente;
 import ecommerce.entity.ItemCompra;
 import ecommerce.entity.Produto;
 import ecommerce.entity.TipoCliente;
 import ecommerce.entity.TipoProduto;
+import ecommerce.external.IEstoqueExternal;
+import ecommerce.external.IPagamentoExternal;
+import ecommerce.repository.ClienteRepository;
+import ecommerce.service.CarrinhoDeComprasService;
+import ecommerce.service.ClienteService;
 import ecommerce.service.CompraService;
 import java.math.RoundingMode;
 
@@ -21,9 +36,25 @@ class CompraServiceTest {
 
     private CompraService compraService;
 
+    @Mock
+    private CarrinhoDeComprasService carrinhoService;
+
+    @Mock
+    private ClienteService clienteService;
+
+    @Mock
+    private IEstoqueExternal estoqueExternal;
+
+    @Mock
+    private IPagamentoExternal pagamentoExternal;
+
+    @Mock
+    private ClienteRepository clienteRepository;
+
     @BeforeEach
     void setup() {
-        compraService = new CompraService(null, null, null, null);
+        MockitoAnnotations.openMocks(this);
+        compraService = new CompraService(carrinhoService, clienteService, estoqueExternal, pagamentoExternal);
     }
 
     @Test
@@ -149,4 +180,43 @@ class CompraServiceTest {
         // Usando setScale com RoundingMode
         assertEquals(BigDecimal.valueOf(960.0).setScale(2, RoundingMode.HALF_UP), custoTotal.setScale(2, RoundingMode.HALF_UP)); // 1200 - 240 (desconto de 20%)
     }
+
+    @Test
+    void finalizarCompra_DeveFinalizarCompraComSucesso() {
+        // Mockando dependências
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+        Cliente cliente = new Cliente(clienteId, "Maria", "Rua B", TipoCliente.OURO);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+        
+        // Mock das interações com os serviços
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+        
+        // Mockando o estoque (verificando disponibilidade)
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+            .thenReturn(new DisponibilidadeDTO(true, List.of()));  // Disponível, sem produtos indisponíveis
+
+        // Mockando o pagamento (autorização)
+        when(pagamentoExternal.autorizarPagamento(clienteId, BigDecimal.ZERO.doubleValue()))
+                .thenReturn(new PagamentoDTO(true, 12345L));  // Pagamento autorizado
+
+        // Mockando a baixa no estoque (sucesso)
+        when(estoqueExternal.darBaixa(any(), any()))
+                .thenReturn(new EstoqueBaixaDTO(true));  // Garantindo que a baixa no estoque seja bem-sucedida
+
+        // Chamando o método de finalizar a compra
+        CompraDTO compraDTO = compraService.finalizarCompra(carrinhoId, clienteId);
+        
+        // Verificando o comportamento esperado
+        assertNotNull(compraDTO);
+        
+        // Verificando se a compra foi finalizada corretamente
+        assertTrue(compraDTO.sucesso());  // Alterado para verificar o campo 'sucesso' em CompraDTO
+        assertEquals(12345L, compraDTO.transacaoPagamentoId());  // Verificando o transacaoPagamentoId
+        assertEquals("Compra finalizada com sucesso.", compraDTO.mensagem());  // Verificando a mensagem
+    }
+
+ 
 }
