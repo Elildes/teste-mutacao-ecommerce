@@ -2,6 +2,7 @@ package ecommerce.entity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -28,6 +29,49 @@ public class CarrinhoDeComprasTest {
         itens.add(itemCompra);
 
         carrinho = new CarrinhoDeCompras(1L, cliente, itens, LocalDate.now());
+    }
+
+    @Test
+    void testInicializacaoItensComConstrutorPadrao() {
+        // Testa o construtor padrão
+        CarrinhoDeCompras carrinhoPadrao = new CarrinhoDeCompras();
+        assertNotNull(carrinhoPadrao.getItens(), "A lista 'itens' deve ser inicializada como um ArrayList vazio.");
+        assertTrue(carrinhoPadrao.getItens().isEmpty(), "A lista 'itens' deve estar vazia inicialmente.");
+    }
+
+    @Test
+    void testAdicionarItemNaListaItens() {
+        // Testa se itens podem ser adicionados diretamente à lista
+        Produto novoProduto = new Produto(2L, "Outro Produto", "Outra Descrição", BigDecimal.valueOf(50.00), 3, TipoProduto.ROUPA);
+        ItemCompra novoItem = new ItemCompra(2L, novoProduto, 1L);
+
+        carrinho.getItens().add(novoItem);
+
+        assertEquals(2, carrinho.getItens().size(), "O tamanho da lista 'itens' deve refletir os itens adicionados.");
+        assertTrue(carrinho.getItens().contains(novoItem), "O item recém-adicionado deve estar presente na lista.");
+    }
+
+    @Test
+    void testRemoverItemDaListaItens() {
+        // Testa se itens podem ser removidos diretamente da lista
+        carrinho.getItens().remove(0);
+
+        assertTrue(carrinho.getItens().isEmpty(), "A lista 'itens' deve estar vazia após remover o único item.");
+    }
+
+    @Test
+    void testSubstituirListaItens() {
+        // Testa a substituição da lista 'itens' usando o setter
+        List<ItemCompra> novaLista = new ArrayList<>();
+        Produto outroProduto = new Produto(3L, "Produto Extra", "Descrição Extra", BigDecimal.valueOf(30.00), 2, TipoProduto.ALIMENTO);
+        ItemCompra novoItem = new ItemCompra(3L, outroProduto, 3L);
+        novaLista.add(novoItem);
+
+        carrinho.setItens(novaLista);
+
+        assertEquals(novaLista, carrinho.getItens(), "A lista 'itens' deve ser substituída corretamente.");
+        assertEquals(1, carrinho.getItens().size(), "A nova lista deve ter exatamente 1 item.");
+        assertTrue(carrinho.getItens().contains(novoItem), "O item da nova lista deve estar presente.");
     }
 
     @Test
@@ -96,5 +140,7 @@ public class CarrinhoDeComprasTest {
         // Verifica a inicialização do carrinho com o construtor padrão
         CarrinhoDeCompras carrinhoPadrao = new CarrinhoDeCompras();
         assertNotNull(carrinhoPadrao);
+        assertNotNull(carrinhoPadrao.getItens());
+        assertEquals(0, carrinhoPadrao.getItens().size()); // Garante que a lista foi inicializada vazia
     }
 }
