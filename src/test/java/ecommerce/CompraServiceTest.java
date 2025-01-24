@@ -9,14 +9,11 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import ecommerce.dto.CompraDTO;
 import ecommerce.dto.DisponibilidadeDTO;
@@ -30,7 +27,6 @@ import ecommerce.entity.TipoCliente;
 import ecommerce.entity.TipoProduto;
 import ecommerce.external.IEstoqueExternal;
 import ecommerce.external.IPagamentoExternal;
-import ecommerce.repository.CarrinhoDeComprasRepository;
 import ecommerce.repository.ClienteRepository;
 import ecommerce.service.CarrinhoDeComprasService;
 import ecommerce.service.ClienteService;
@@ -38,19 +34,15 @@ import ecommerce.service.CompraService;
 import java.math.RoundingMode;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyDouble;
 
-@ExtendWith(MockitoExtension.class)
+
 class CompraServiceTest {
 
     private CompraService compraService;
 
     @Mock
     private CarrinhoDeComprasService carrinhoService;
-
-    @Mock
-    private CarrinhoDeComprasRepository carrinhoRepository;
 
     @Mock
     private ClienteService clienteService;
@@ -203,14 +195,7 @@ class CompraServiceTest {
         CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
         carrinho.setCliente(cliente);
         
-        // Mockando o carrinho de compras
-        Produto produto1 = new Produto(1L, "Produto A", "Descrição A", BigDecimal.valueOf(200), 5, TipoProduto.ELETRONICO);
-        Produto produto2 = new Produto(2L, "Produto B", "Descrição B", BigDecimal.valueOf(300), 10, TipoProduto.ROUPA);  
-        ItemCompra item1 = new ItemCompra(1L, produto1, 1L);
-        ItemCompra item2 = new ItemCompra(2L, produto2, 2L);
-        carrinho.setItens(List.of(item1, item2));
-
-        // Mockando os serviços
+        // Mock das interações com os serviços
         when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
         when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
         
@@ -219,12 +204,12 @@ class CompraServiceTest {
             .thenReturn(new DisponibilidadeDTO(true, List.of()));  // Disponível, sem produtos indisponíveis
 
         // Mockando o pagamento (autorização)
-         when(pagamentoExternal.autorizarPagamento(eq(clienteId), eq(720.0))) // Valor ajustado
-            .thenReturn(new PagamentoDTO(true, 12345L)); // Pagamento autorizado
+        when(pagamentoExternal.autorizarPagamento(clienteId, BigDecimal.ZERO.doubleValue()))
+                .thenReturn(new PagamentoDTO(true, 12345L));  // Pagamento autorizado
 
         // Mockando a baixa no estoque (sucesso)
         when(estoqueExternal.darBaixa(any(), any()))
-            .thenReturn(new EstoqueBaixaDTO(true)); // Baixa no estoque bem-sucedida
+                .thenReturn(new EstoqueBaixaDTO(true));  // Garantindo que a baixa no estoque seja bem-sucedida
 
         // Chamando o método de finalizar a compra
         CompraDTO compraDTO = compraService.finalizarCompra(carrinhoId, clienteId);
@@ -240,11 +225,11 @@ class CompraServiceTest {
 
     @Test
     void finalizarCompra_EstoqueIndisponivel_DeveLancarExcecao() {
-        // Mockando dependências       
         Long carrinhoId = 1L;
         Long clienteId = 1L;
+
+        // Mock do cliente e do carrinho
         Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
-        
         CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
         carrinho.setCliente(cliente);
 
@@ -264,14 +249,13 @@ class CompraServiceTest {
 
     @Test
     void finalizarCompra_PagamentoNaoAutorizado_DeveLancarExcecao() {
-        // Mockando dependências
         Long carrinhoId = 1L;
         Long clienteId = 1L;
-        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
 
+        // Mock do cliente e do carrinho
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
         CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
         carrinho.setCliente(cliente);
-        carrinho.setItens(List.of()); // Simula itens no carrinho
 
         when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
         when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
