@@ -567,4 +567,5 @@ class CompraServiceTest {
         assertEquals(List.of(2L, 1L), quantidades); // Verifica quantidades extraídas
     }
 
+    
 }
