@@ -566,6 +566,5 @@ class CompraServiceTest {
         assertEquals(List.of(1L, 2L), ids); // Verifica IDs extraídos
         assertEquals(List.of(2L, 1L), quantidades); // Verifica quantidades extraídas
     }
-
     
 }
