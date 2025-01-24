@@ -567,4 +567,95 @@ class CompraServiceTest {
         assertEquals(List.of(2L, 1L), quantidades); // Verifica quantidades extraídas
     }
     
+    @Test
+    void finalizarCompra_BaixaEstoqueFalha_DeveLancarExcecaoEChamarGetIdDoCliente() {
+        // Arrange
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+        .thenReturn(new DisponibilidadeDTO(true, List.of()));
+        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
+        .thenReturn(new PagamentoDTO(true, 12345L));
+        when(estoqueExternal.darBaixa(any(), any()))
+            .thenReturn(new EstoqueBaixaDTO(false));
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId)
+        );
+
+        assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+
+        // Verify
+        verify(clienteService).buscarPorId(clienteId);
+        verify(pagamentoExternal).cancelarPagamento(cliente.getId(), 12345L); // Garante que getId foi chamado
+    }
+    
+    @Test
+    void finalizarCompra_BaixaEstoqueFalha_DeveCancelarPagamento() {
+        // Arrange
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+        .thenReturn(new DisponibilidadeDTO(true, List.of()));
+        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
+        .thenReturn(new PagamentoDTO(true, 12345L));
+        when(estoqueExternal.darBaixa(any(), any()))
+            .thenReturn(new EstoqueBaixaDTO(false));
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId)
+        );
+
+        assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+
+        // Verifica que o cancelamento foi chamado
+        verify(pagamentoExternal).cancelarPagamento(clienteId, 12345L);
+    }
+
+    @Test
+    void finalizarCompra_BaixaEstoqueFalha_DeveUsarTransacaoIdCorretamente() {
+        // Arrange
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+        .thenReturn(new DisponibilidadeDTO(true, List.of()));
+        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
+        .thenReturn(new PagamentoDTO(true, 12345L)); // Transação de pagamento
+        when(estoqueExternal.darBaixa(any(), any()))
+            .thenReturn(new EstoqueBaixaDTO(false)); // Falha na baixa
+
+        // Act & Assert
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId)
+        );
+
+        assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+
+        // Verifica que a transação foi usada corretamente no cancelamento
+        verify(pagamentoExternal).cancelarPagamento(clienteId, 12345L);
+    }
+
 }
