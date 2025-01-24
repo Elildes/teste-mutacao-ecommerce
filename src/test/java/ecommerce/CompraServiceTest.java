@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -31,6 +32,10 @@ import ecommerce.service.CarrinhoDeComprasService;
 import ecommerce.service.ClienteService;
 import ecommerce.service.CompraService;
 import java.math.RoundingMode;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyDouble;
+
 
 class CompraServiceTest {
 
@@ -218,5 +223,239 @@ class CompraServiceTest {
         assertEquals("Compra finalizada com sucesso.", compraDTO.mensagem());  // Verificando a mensagem
     }
 
- 
+    @Test
+    void finalizarCompra_EstoqueIndisponivel_DeveLancarExcecao() {
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        // Mock do cliente e do carrinho
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+
+        // Mock da indisponibilidade de estoque
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+            .thenReturn(new DisponibilidadeDTO(false, List.of(1L))); // Item 1 indisponível
+
+        // Verificar que a exceção é lançada
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId));
+
+        assertEquals("Itens fora de estoque.", exception.getMessage());
+    }
+
+    @Test
+    void finalizarCompra_PagamentoNaoAutorizado_DeveLancarExcecao() {
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        // Mock do cliente e do carrinho
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+
+        // Mock de disponibilidade do estoque
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+            .thenReturn(new DisponibilidadeDTO(true, List.of()));
+
+        // Mock de pagamento não autorizado
+        when(pagamentoExternal.autorizarPagamento(clienteId, 0.0))
+            .thenReturn(new PagamentoDTO(false, null)); // Pagamento negado
+
+        // Verificar que a exceção é lançada
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId));
+
+        assertEquals("Pagamento não autorizado.", exception.getMessage());
+    }
+
+    @Test
+    void finalizarCompra_BaixaEstoqueFalha_DeveLancarExcecao() {
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        // Mock do cliente e do carrinho
+        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+
+        // Mock de disponibilidade do estoque
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+            .thenReturn(new DisponibilidadeDTO(true, List.of()));
+
+        // Mock de pagamento autorizado
+        when(pagamentoExternal.autorizarPagamento(clienteId, 0.0))
+            .thenReturn(new PagamentoDTO(true, 12345L));
+
+        // Mock de falha na baixa de estoque
+        when(estoqueExternal.darBaixa(any(), any()))
+            .thenReturn(new EstoqueBaixaDTO(false));
+
+        // Verificar que a exceção é lançada
+        IllegalStateException exception = assertThrows(IllegalStateException.class, 
+            () -> compraService.finalizarCompra(carrinhoId, clienteId));
+
+        assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+    }
+
+    @Test
+    void calcularFrete_PesoExatamente50kg_DeveCobrarFrete4() {
+        Produto produto = new Produto(1L, "Produto A", "Descrição A", BigDecimal.valueOf(100.0), 25, TipoProduto.MOVEL);
+        ItemCompra item = new ItemCompra(1L, produto, 2L); // Total: 50kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.valueOf(200).setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // 50kg * 4
+    }
+    
+    @Test
+    void calcularFrete_PesoExatamente51kg_DeveCobrarFrete7() {
+        Produto produto = new Produto(1L, "Produto A7", "Descrição A7", BigDecimal.valueOf(100.0), 51, TipoProduto.MOVEL);
+        ItemCompra item = new ItemCompra(1L, produto, 1L); // Total: 51kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.valueOf(357).setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // 51kg * 7
+    }
+    
+    @Test
+    void calcularFrete_PesoExatamente10kg_DeveCobrarFrete2() {
+        Produto produto = new Produto(1L, "Produto A", "Descrição A", BigDecimal.valueOf(100.0), 5, TipoProduto.MOVEL);
+        ItemCompra item = new ItemCompra(1L, produto, 2L); // Total: 10kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.valueOf(20).setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // 10kg * 2
+    }
+    
+    @Test
+    void calcularFrete_PesoExatamente11kg_DeveCobrarFrete4() {
+        Produto produto = new Produto(1L, "Produto A4", "Descrição A4", BigDecimal.valueOf(100.0), 11, TipoProduto.MOVEL);
+        ItemCompra item = new ItemCompra(1L, produto, 1L); // Total: 11kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.valueOf(44).setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // 11kg * 4
+    }
+    
+    @Test
+    void calcularFrete_PesoExatamente5kg_DeveNaoCobrarFrete() {
+        Produto produto = new Produto(1L, "Produto A", "Descrição A", BigDecimal.valueOf(50.0), 5, TipoProduto.ELETRONICO);
+        ItemCompra item = new ItemCompra(1L, produto, 1L); // Total: 5 kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // Frete grátis
+    }
+    
+    @Test
+    void calcularFrete_PesoExatamente6kg_DeveCobrarFrete2() {
+        Produto produto = new Produto(1L, "Produto A2", "Descrição A2", BigDecimal.valueOf(100.0), 3, TipoProduto.MOVEL);
+        ItemCompra item = new ItemCompra(1L, produto, 2L); // Total: 6kg
+
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setItens(List.of(item));
+
+        BigDecimal frete = compraService.calcularFrete(carrinho);
+
+        assertEquals(BigDecimal.valueOf(12).setScale(2, RoundingMode.HALF_UP), frete.setScale(2, RoundingMode.HALF_UP)); // 6kg * 2
+    }
+
+    @Test
+    void calcularDesconto_ValorExatamente1000_DeveAplicar10Porcento() {
+        BigDecimal totalProdutos = BigDecimal.valueOf(1000);
+
+        BigDecimal desconto = compraService.calcularDesconto(totalProdutos);
+
+        assertEquals(BigDecimal.valueOf(100).setScale(2, RoundingMode.HALF_UP), desconto.setScale(2, RoundingMode.HALF_UP)); // 10% de 1000
+    }
+
+    @Test
+    void calcularDesconto_ValorExatamente1001_DeveAplicar20Porcento() {
+        BigDecimal totalProdutos = BigDecimal.valueOf(1001);
+
+        BigDecimal desconto = compraService.calcularDesconto(totalProdutos);
+
+        assertEquals(BigDecimal.valueOf(200.2).setScale(2, RoundingMode.HALF_UP), desconto.setScale(2, RoundingMode.HALF_UP)); // 20% de 1001
+    }
+    
+    @Test
+    void calcularDesconto_ValorExatamente500_NaoDeveAplicar10Porcento() {
+        BigDecimal totalProdutos = BigDecimal.valueOf(500);
+
+        BigDecimal desconto = compraService.calcularDesconto(totalProdutos);
+
+        assertEquals(BigDecimal.valueOf(0).setScale(2, RoundingMode.HALF_UP), desconto.setScale(2, RoundingMode.HALF_UP)); // 0% de 500
+    }
+    
+    @Test
+    void calcularDesconto_ValorExatamente501_DeveAplicar10Porcento() {
+        BigDecimal totalProdutos = BigDecimal.valueOf(501);
+
+        BigDecimal desconto = compraService.calcularDesconto(totalProdutos);
+
+        assertEquals(BigDecimal.valueOf(50.10).setScale(2, RoundingMode.HALF_UP), desconto.setScale(2, RoundingMode.HALF_UP)); // 10% de 501
+    }
+
+    @Test
+    void calcularDesconto_Valor499_99_NaoDeveAplicarDesconto() {
+        BigDecimal totalProdutos = BigDecimal.valueOf(499.99);
+
+        BigDecimal desconto = compraService.calcularDesconto(totalProdutos);
+
+        assertEquals(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), desconto.setScale(2, RoundingMode.HALF_UP)); // Sem desconto
+    }
+
+    @Test
+    void finalizarCompra_DeveChamarServicosExternos() {
+        Long carrinhoId = 1L;
+        Long clienteId = 1L;
+
+        Cliente cliente = new Cliente(clienteId, "Maria", "Rua B", TipoCliente.BRONZE);
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        carrinho.setCliente(cliente);
+
+        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
+        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
+        when(estoqueExternal.verificarDisponibilidade(any(), any()))
+            .thenReturn(new DisponibilidadeDTO(true, List.of()));
+        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
+            .thenReturn(new PagamentoDTO(true, 12345L));
+        when(estoqueExternal.darBaixa(any(), any()))
+            .thenReturn(new EstoqueBaixaDTO(true));
+
+        compraService.finalizarCompra(carrinhoId, clienteId);
+
+        verify(clienteService).buscarPorId(clienteId);
+        verify(carrinhoService).buscarPorCarrinhoIdEClienteId(carrinhoId, cliente);
+        verify(estoqueExternal).verificarDisponibilidade(any(), any());
+        verify(pagamentoExternal).autorizarPagamento(clienteId, 0.0);
+        verify(estoqueExternal).darBaixa(any(), any());
+    }
+
+   
 }
