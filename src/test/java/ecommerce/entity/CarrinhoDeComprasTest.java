@@ -39,14 +39,6 @@ public class CarrinhoDeComprasTest {
         assertEquals(0, carrinho.getItens().size());
     }
 
-    // @Test
-    // void testInicializacaoItensComConstrutorPadrao() {
-    //     // Testa o construtor padrão
-    //     CarrinhoDeCompras carrinhoPadrao = new CarrinhoDeCompras();
-    //     assertNotNull(carrinhoPadrao.getItens(), "A lista 'itens' deve ser inicializada como um ArrayList vazio.");
-    //     assertTrue(carrinhoPadrao.getItens().isEmpty(), "A lista 'itens' deve estar vazia inicialmente.");
-    // }
-
     @Test
     void testInicializacaoListaItens() {
         // Testa a inicialização padrão do atributo 'itens'
@@ -54,18 +46,6 @@ public class CarrinhoDeComprasTest {
         assertNotNull(carrinhoPadrao.getItens(), "A lista 'itens' deve ser inicializada como um ArrayList.");
         assertTrue(carrinhoPadrao.getItens().isEmpty(), "A lista 'itens' deve estar vazia ao usar o construtor padrão.");
     }
- 
-    // @Test
-    // void testAdicionarItemNaListaItens() {
-    //     // Testa se itens podem ser adicionados diretamente à lista
-    //     Produto novoProduto = new Produto(2L, "Outro Produto", "Outra Descrição", BigDecimal.valueOf(50.00), 3, TipoProduto.ROUPA);
-    //     ItemCompra novoItem = new ItemCompra(2L, novoProduto, 1L);
-
-    //     carrinho.getItens().add(novoItem);
-
-    //     assertEquals(2, carrinho.getItens().size(), "O tamanho da lista 'itens' deve refletir os itens adicionados.");
-    //     assertTrue(carrinho.getItens().contains(novoItem), "O item recém-adicionado deve estar presente na lista.");
-    // }
 
     @Test
     void testAdicionarItemNaLista() {
@@ -173,12 +153,4 @@ public class CarrinhoDeComprasTest {
         assertEquals(novaData, carrinho.getData());
     }
 
-    // @Test
-    // void testCarrinhoConstrutorPadrao() {
-    //     // Verifica a inicialização do carrinho com o construtor padrão
-    //     CarrinhoDeCompras carrinhoPadrao = new CarrinhoDeCompras();
-    //     assertNotNull(carrinhoPadrao);
-    //     assertNotNull(carrinhoPadrao.getItens());
-    //     assertEquals(0, carrinhoPadrao.getItens().size()); // Garante que a lista foi inicializada vazia
-    // }
 }
