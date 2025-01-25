@@ -472,7 +472,6 @@ class CompraServiceTest {
         verify(estoqueExternal).darBaixa(any(), any());
     }
 
-    
     @Test
     void finalizarCompra_DeveExtrairIdsDosProdutosDoCarrinho() {
         // Arrange
@@ -508,41 +507,6 @@ class CompraServiceTest {
         verify(estoqueExternal).verificarDisponibilidade(
             List.of(1L, 2L), // Verifica os IDs dos produtos extraídos
             List.of(2L, 1L)  // Verifica as quantidades extraídas
-        );
-    }
-
-    @Test
-    void finalizarCompra_DeveUsarQuantidadesCorretasDosItens() {
-        // Arrange
-        Long carrinhoId = 1L;
-        Long clienteId = 1L;
-
-        Produto produto = new Produto(1L, "Produto Teste", "Descrição", BigDecimal.valueOf(50.0), 5, TipoProduto.ROUPA);
-        ItemCompra item = new ItemCompra(1L, produto, 3L); // Quantidade 3
-
-        Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
-        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
-        carrinho.setCliente(cliente);
-        carrinho.setItens(List.of(item));
-
-        when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
-        when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
-        when(estoqueExternal.verificarDisponibilidade(any(), any()))
-        .thenReturn(new DisponibilidadeDTO(true, List.of()));
-        when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
-        .thenReturn(new PagamentoDTO(true, 12345L));
-        when(estoqueExternal.darBaixa(any(), any()))
-            .thenReturn(new EstoqueBaixaDTO(true));
-
-        // Act
-        CompraDTO compra = compraService.finalizarCompra(carrinhoId, clienteId);
-
-        // Assert
-        assertNotNull(compra);
-        assertTrue(compra.sucesso());
-        verify(estoqueExternal).verificarDisponibilidade(
-            List.of(1L),    // ID do produto
-            List.of(3L)     // Quantidade do produto
         );
     }
 
@@ -629,15 +593,20 @@ class CompraServiceTest {
     }
 
     @Test
-    void finalizarCompra_BaixaEstoqueFalha_DeveUsarTransacaoIdCorretamente() {
+    void finalizarCompra_DeveEnviarCustoTotalConvertidoParaDoubleCorretamente() {
         // Arrange
         Long carrinhoId = 1L;
         Long clienteId = 1L;
 
+        Produto produto = new Produto(1L, "Produto Teste", "Descrição", BigDecimal.valueOf(50.0), 2, TipoProduto.ELETRONICO); // Produto de R$ 50
+        ItemCompra item = new ItemCompra(1L, produto, 2L); // Total dos produtos = 100
         Cliente cliente = new Cliente(clienteId, "João", "Rua A, 123", TipoCliente.BRONZE);
+
         CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
         carrinho.setCliente(cliente);
+        carrinho.setItens(List.of(item));
 
+        // Mockar serviços
         when(clienteService.buscarPorId(clienteId)).thenReturn(cliente);
         when(carrinhoService.buscarPorCarrinhoIdEClienteId(carrinhoId, cliente)).thenReturn(carrinho);
         when(estoqueExternal.verificarDisponibilidade(any(), any()))
@@ -645,17 +614,21 @@ class CompraServiceTest {
         when(pagamentoExternal.autorizarPagamento(anyLong(), anyDouble()))
         .thenReturn(new PagamentoDTO(true, 12345L)); // Transação de pagamento
         when(estoqueExternal.darBaixa(any(), any()))
-            .thenReturn(new EstoqueBaixaDTO(false)); // Falha na baixa
+            .thenReturn(new EstoqueBaixaDTO(true));
 
-        // Act & Assert
-        IllegalStateException exception = assertThrows(IllegalStateException.class, 
-            () -> compraService.finalizarCompra(carrinhoId, clienteId)
-        );
+        // Simular cálculos
+        BigDecimal totalProdutos = BigDecimal.valueOf(100.0); // 50 * 2
+        BigDecimal frete = BigDecimal.valueOf(0.0); // Peso total 4kg -> Frete 0
+        BigDecimal desconto = BigDecimal.ZERO; // Sem desconto por valor
+        BigDecimal descontoTipoCliente = BigDecimal.ZERO; // Cliente Bronze, sem desconto no frete
 
-        assertEquals("Erro ao dar baixa no estoque.", exception.getMessage());
+        BigDecimal custoTotalEsperado = totalProdutos.add(frete).subtract(desconto).subtract(descontoTipoCliente);
 
-        // Verifica que a transação foi usada corretamente no cancelamento
-        verify(pagamentoExternal).cancelarPagamento(clienteId, 12345L);
+        // Act
+        compraService.finalizarCompra(carrinhoId, clienteId);
+
+        // Assert
+        verify(pagamentoExternal).autorizarPagamento(clienteId, custoTotalEsperado.doubleValue());
     }
 
 }
