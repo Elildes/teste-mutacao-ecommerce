@@ -32,6 +32,13 @@ public class CarrinhoDeComprasTest {
         carrinho = new CarrinhoDeCompras(1L, cliente, itens, LocalDate.now());
     }
 
+    @Test
+    public void testEmptyItensList() {
+        // verifica se a lista tá vazia
+        CarrinhoDeCompras carrinho = new CarrinhoDeCompras();
+        assertEquals(0, carrinho.getItens().size());
+    }
+
     // @Test
     // void testInicializacaoItensComConstrutorPadrao() {
     //     // Testa o construtor padrão
